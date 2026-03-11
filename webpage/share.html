@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件分享 - GoDisk</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .file-info {
+            background: #f5f5f5;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .file-icon {
+            font-size: 48px;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .file-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+            word-break: break-all;
+        }
+
+        .file-meta {
+            display: flex;
+            justify-content: space-around;
+            color: #666;
+            font-size: 14px;
+            margin-top: 15px;
+        }
+
+        .meta-item {
+            text-align: center;
+        }
+
+        .meta-label {
+            margin-bottom: 5px;
+        }
+
+        .meta-value {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .password-section {
+            margin-bottom: 20px;
+        }
+
+        .password-section label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        input[type="password"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #1890ff;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background-color: #1890ff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #40a9ff;
+        }
+
+        .btn-primary:disabled {
+            background-color: #d9d9d9;
+            cursor: not-allowed;
+        }
+
+        .btn-success {
+            background-color: #52c41a;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background-color: #73d13d;
+        }
+
+        .message {
+            padding: 12px 20px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .message.error {
+            background-color: #fff2f0;
+            color: #ff4d4f;
+            border: 1px solid #ffccc7;
+        }
+
+        .message.success {
+            background-color: #f6ffed;
+            color: #52c41a;
+            border: 1px solid #b7eb8f;
+        }
+
+        .message.info {
+            background-color: #e6f7ff;
+            color: #1890ff;
+            border: 1px solid #91d5ff;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #1890ff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            color: #999;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📁 GoDisk 云分享</h1>
+            <p>安全、快速的文件分享服务</p>
+        </div>
+
+        <div id="loadingSection" class="loading">
+            <div class="spinner"></div>
+            <p>正在加载分享信息...</p>
+        </div>
+
+        <div id="contentSection" class="hidden">
+            <div id="messageContainer"></div>
+
+            <div id="passwordSection" class="password-section hidden">
+                <label>此文件需要密码才能访问</label>
+                <input type="password" id="passwordInput" placeholder="请输入访问密码">
+            </div>
+
+            <div class="file-info">
+                <div class="file-icon" id="fileIcon">📄</div>
+                <div class="file-name" id="fileName">文件名</div>
+                <div class="file-meta">
+                    <div class="meta-item">
+                        <div class="meta-label">文件大小</div>
+                        <div class="meta-value" id="fileSize">-</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">文件类型</div>
+                        <div class="meta-value" id="fileType">-</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">有效期</div>
+                        <div class="meta-value" id="expireInfo">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <button id="downloadBtn" class="btn btn-primary" onclick="handleDownload()">
+                ⬇️ 下载文件
+            </button>
+        </div>
+
+        <div class="footer">
+            Powered by GoDisk - 安全可靠的云存储服务
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080';
+        let shareData = null;
+        let isPasswordVerified = false;
+
+        // 从URL获取分享码
+        function getShareCode() {
+            const path = window.location.pathname;
+            const match = path.match(/\/s\/([a-f0-9]+)/);
+            return match ? match[1] : null;
+        }
+
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (!bytes) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        // 获取文件图标
+        function getFileIcon(fileName, mimeType) {
+            if (mimeType.startsWith('image/')) return '🖼️';
+            if (mimeType.startsWith('video/')) return '🎬';
+            if (mimeType.startsWith('audio/')) return '🎵';
+            if (mimeType.includes('pdf')) return '📕';
+            if (mimeType.includes('word') || mimeType.includes('document')) return '📝';
+            if (mimeType.includes('excel') || mimeType.includes('sheet')) return '📊';
+            if (mimeType.includes('powerpoint') || mimeType.includes('presentation')) return '📽️';
+            if (mimeType.includes('zip') || mimeType.includes('rar')) return '📦';
+            return '📄';
+        }
+
+        // 格式化日期
+        function formatDate(dateString) {
+            if (!dateString) return '永久有效';
+            const date = new Date(dateString);
+            return date.toLocaleString('zh-CN');
+        }
+
+        // 显示消息
+        function showMessage(message, type = 'info') {
+            const container = document.getElementById('messageContainer');
+            container.innerHTML = `<div class="message ${type}">${message}</div>`;
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 5000);
+        }
+
+        // 加载分享信息
+        async function loadShareInfo() {
+            const shareCode = getShareCode();
+            if (!shareCode) {
+                showMessage('无效的分享链接', 'error');
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/api/s/${shareCode}/info`);
+                const result = await res.json();
+
+                if (result.code === 0) {
+                    shareData = result.data;
+                    displayShareInfo();
+                } else {
+                    showMessage(result.message || '加载分享信息失败', 'error');
+                }
+            } catch (e) {
+                showMessage('网络错误: ' + e.message, 'error');
+            } finally {
+                document.getElementById('loadingSection').classList.add('hidden');
+                document.getElementById('contentSection').classList.remove('hidden');
+            }
+        }
+
+        // 显示分享信息
+        function displayShareInfo() {
+            const file = shareData.file;
+
+            document.getElementById('fileIcon').textContent = getFileIcon(file.file_name, file.mime_type);
+            document.getElementById('fileName').textContent = file.file_name;
+            document.getElementById('fileSize').textContent = formatFileSize(file.file_size);
+            document.getElementById('fileType').textContent = file.mime_type || '未知';
+            document.getElementById('expireInfo').textContent = formatDate(shareData.expire_at);
+
+            // 如果有密码，显示密码输入框
+            if (shareData.has_password) {
+                document.getElementById('passwordSection').classList.remove('hidden');
+            }
+        }
+
+        // 验证密码
+        async function verifyPassword() {
+            const password = document.getElementById('passwordInput').value;
+            if (!password) {
+                showMessage('请输入密码', 'error');
+                return false;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/s/${getShareCode()}/verify`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ password: password })
+                });
+                const result = await res.json();
+
+                if (result.code === 0) {
+                    isPasswordVerified = true;
+                    showMessage('密码验证成功', 'success');
+                    return true;
+                } else {
+                    showMessage(result.message || '密码错误', 'error');
+                    return false;
+                }
+            } catch (e) {
+                showMessage('网络错误: ' + e.message, 'error');
+                return false;
+            }
+        }
+
+        // 处理下载
+        async function handleDownload() {
+            const btn = document.getElementById('downloadBtn');
+            btn.disabled = true;
+            btn.textContent = '正在准备下载...';
+
+            try {
+                // 如果需要密码且未验证
+                if (shareData.has_password && !isPasswordVerified) {
+                    const verified = await verifyPassword();
+                    if (!verified) {
+                        btn.disabled = false;
+                        btn.textContent = '⬇️ 下载文件';
+                        return;
+                    }
+                }
+
+                // 构建下载URL
+                let downloadUrl = `${API_BASE}/s/${getShareCode()}/download`;
+
+                // 如果有密码，添加到URL参数
+                if (shareData.has_password) {
+                    const password = document.getElementById('passwordInput').value;
+                    downloadUrl += `?password=${encodeURIComponent(password)}`;
+                }
+
+                showMessage('开始下载...', 'success');
+
+                // 使用新窗口下载
+                window.open(downloadUrl, '_blank');
+
+                btn.textContent = '⬇️ 下载文件';
+            } catch (e) {
+                showMessage('下载失败: ' + e.message, 'error');
+                btn.textContent = '⬇️ 下载文件';
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // 页面加载时执行
+        window.onload = function() {
+            loadShareInfo();
+        };
+    </script>
+</body>
+</html>

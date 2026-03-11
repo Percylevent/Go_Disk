@@ -1,0 +1,2363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GoDisk - 云盘</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        /* 通用样式 */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background-color: #1890ff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #40a9ff;
+        }
+
+        .btn-danger {
+            background-color: #ff4d4f;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background-color: #ff7875;
+        }
+
+        .btn-secondary {
+            background-color: #fff;
+            border: 1px solid #d9d9d9;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            border-color: #1890ff;
+            color: #1890ff;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        input[type="email"] {
+            padding: 10px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 100%;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #1890ff;
+        }
+
+        /* 消息提示 */
+        .message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 4px;
+            color: white;
+            font-size: 14px;
+            z-index: 1000;
+            animation: slideIn 0.3s;
+        }
+
+        .message.success {
+            background-color: #52c41a;
+        }
+
+        .message.error {
+            background-color: #ff4d4f;
+        }
+
+        .message.info {
+            background-color: #1890ff;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* 登录页面 */
+        #loginPage {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .login-container {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            width: 400px;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .login-header h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        .login-header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .login-footer {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .login-footer a {
+            color: #1890ff;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .login-footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* 注册表单 */
+        #registerForm {
+            display: none;
+        }
+
+        /* 主应用 */
+        #mainApp {
+            display: none;
+        }
+
+        /* 顶部导航栏 */
+        .navbar {
+            background-color: #001529;
+            color: white;
+            padding: 0 20px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .navbar-brand {
+            font-size: 20px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .navbar-brand span {
+            color: #1890ff;
+        }
+
+        .navbar-menu {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .search-box {
+            position: relative;
+        }
+
+        .search-box input {
+            width: 300px;
+            padding-right: 40px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-color: transparent;
+            color: white;
+        }
+
+        .search-box input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .search-box input:focus {
+            background-color: white;
+            color: #333;
+        }
+
+        .search-box input:focus::placeholder {
+            color: #999;
+        }
+
+        .search-btn {
+            position: absolute;
+            right: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.5);
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: #1890ff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .user-dropdown {
+            position: relative;
+        }
+
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            min-width: 150px;
+            z-index: 100;
+            margin-top: 5px;
+        }
+
+        .dropdown-menu.show {
+            display: block;
+        }
+
+        .dropdown-menu a {
+            display: block;
+            padding: 10px 15px;
+            color: #333;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .dropdown-menu a:hover {
+            background-color: #f5f5f5;
+        }
+
+        .dropdown-menu a:first-child {
+            border-radius: 4px 4px 0 0;
+        }
+
+        .dropdown-menu a:last-child {
+            border-radius: 0 0 4px 4px;
+            color: #ff4d4f;
+        }
+
+        /* 主内容区域 */
+        .main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+
+        /* 侧边栏 */
+        .sidebar {
+            width: 250px;
+            background-color: white;
+            border-right: 1px solid #e8e8e8;
+            padding: 20px 0;
+        }
+
+        .sidebar-menu {
+            list-style: none;
+        }
+
+        .sidebar-menu li {
+            padding: 12px 24px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sidebar-menu li:hover {
+            background-color: #f5f5f5;
+        }
+
+        .sidebar-menu li.active {
+            background-color: #e6f7ff;
+            color: #1890ff;
+            border-right: 3px solid #1890ff;
+        }
+
+        .storage-info {
+            padding: 20px;
+            margin-top: 20px;
+            border-top: 1px solid #e8e8e8;
+        }
+
+        .storage-info h4 {
+            margin-bottom: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: #1890ff;
+            transition: width 0.3s;
+        }
+
+        .storage-text {
+            font-size: 12px;
+            color: #999;
+            margin-top: 8px;
+        }
+
+        /* 文件列表区域 */
+        .file-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+        }
+
+        /* 工具栏 */
+        .toolbar {
+            padding: 15px 20px;
+            border-bottom: 1px solid #e8e8e8;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .breadcrumb {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .breadcrumb-item {
+            color: #666;
+            cursor: pointer;
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
+
+        .breadcrumb-item:hover {
+            background-color: #f5f5f5;
+        }
+
+        .breadcrumb-item.current {
+            color: #333;
+            font-weight: 500;
+        }
+
+        .breadcrumb-separator {
+            color: #999;
+        }
+
+        /* 上传区域 */
+        .upload-area {
+            border: 2px dashed #d9d9d9;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            margin: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .upload-area:hover {
+            border-color: #1890ff;
+        }
+
+        .upload-area.dragover {
+            border-color: #1890ff;
+            background-color: #e6f7ff;
+        }
+
+        .upload-area i {
+            font-size: 48px;
+            color: #d9d9d9;
+            margin-bottom: 10px;
+        }
+
+        /* 文件列表 */
+        .file-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 20px 20px;
+        }
+
+        .file-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .file-table thead {
+            position: sticky;
+            top: 0;
+            background-color: #fafafa;
+        }
+
+        .file-table th {
+            text-align: left;
+            padding: 12px;
+            font-weight: 500;
+            color: #666;
+            border-bottom: 1px solid #e8e8e8;
+        }
+
+        .file-table th:first-child,
+        .file-table td:first-child {
+            width: 40px;
+            text-align: center;
+        }
+
+        .checkbox-cell {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .file-checkbox {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        /* 批量操作按钮组 */
+        .batch-actions {
+            display: none;
+            gap: 10px;
+        }
+
+        .batch-actions.show {
+            display: flex;
+        }
+
+        .batch-info {
+            padding: 8px 15px;
+            background: #e6f7ff;
+            border: 1px solid #91d5ff;
+            border-radius: 4px;
+            color: #0050b3;
+            font-size: 14px;
+        }
+
+        .file-table td {
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .file-table tbody tr:hover {
+            background-color: #fafafa;
+        }
+
+        .file-name {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+
+        .file-icon {
+            font-size: 20px;
+        }
+
+        .file-icon.folder {
+            color: #faad14;
+        }
+
+        .file-icon.file {
+            color: #1890ff;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .file-action-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #666;
+            font-size: 14px;
+            padding: 5px;
+        }
+
+        .file-action-btn:hover {
+            color: #1890ff;
+        }
+
+        .file-action-btn.delete:hover {
+            color: #ff4d4f;
+        }
+
+        /* 上传下拉菜单 */
+        .upload-dropdown {
+            position: relative;
+        }
+
+        .upload-menu {
+            display: none;
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            background: white;
+            border: 1px solid #e8e8e8;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+            z-index: 200;
+            min-width: 160px;
+            overflow: hidden;
+        }
+
+        .upload-menu.show {
+            display: block;
+        }
+
+        .upload-menu button {
+            display: block;
+            width: 100%;
+            padding: 10px 16px;
+            text-align: left;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            color: #333;
+            transition: background 0.2s;
+        }
+
+        .upload-menu button:hover {
+            background: #f5f5f5;
+        }
+
+        /* 侧边栏语义搜索区域 */
+        .semantic-search-section {
+            padding: 14px 16px;
+            border-top: 1px solid #e8e8e8;
+        }
+
+        .semantic-search-section h4 {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .semantic-search-section textarea {
+            width: 100%;
+            resize: none;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            padding: 8px;
+            font-size: 13px;
+            height: 72px;
+            font-family: inherit;
+            color: #333;
+        }
+
+        .semantic-search-section textarea:focus {
+            outline: none;
+            border-color: #1890ff;
+        }
+
+        .semantic-search-section .search-bar {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .semantic-search-section .search-bar button {
+            flex: 1;
+            padding: 7px;
+            border: none;
+            border-radius: 6px;
+            background: #1890ff;
+            color: white;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .semantic-search-section .search-bar button:hover {
+            background: #40a9ff;
+        }
+
+        .semantic-search-section .search-bar button.clear-btn {
+            flex: 0 0 auto;
+            background: #f5f5f5;
+            color: #666;
+            padding: 7px 10px;
+        }
+
+        .semantic-search-section .search-bar button.clear-btn:hover {
+            background: #e8e8e8;
+        }
+
+        /* 文件夹上传进度条 */
+        .folder-upload-status {
+            margin: 0 20px 10px;
+            padding: 12px;
+            background: #e6f7ff;
+            border: 1px solid #91d5ff;
+            border-radius: 6px;
+            font-size: 13px;
+            display: none;
+        }
+
+        /* 模态框 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            min-width: 400px;
+            max-width: 500px;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h3 {
+            font-size: 18px;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .modal-close:hover {
+            color: #333;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        /* 分页控件 */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 15px 0;
+            gap: 8px;
+            margin-top: 10px;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .pagination button {
+            padding: 5px 12px;
+            border: 1px solid #d9d9d9;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            color: #333;
+            transition: all 0.2s;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            border-color: #1890ff;
+            color: #1890ff;
+        }
+
+        .pagination button:disabled {
+            background: #f5f5f5;
+            color: #b8b8b8;
+            cursor: not-allowed;
+            border-color: #d9d9d9;
+        }
+
+        .pagination .page-info {
+            font-size: 13px;
+            color: #666;
+            margin: 0 10px;
+        }
+
+        /* 隐藏的文件输入 */
+        #fileInput {
+            display: none;
+        }
+
+        /* 空状态 */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state i {
+            font-size: 64px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        /* 加载状态 */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        /* 分享信息 */
+        .share-link-container {
+            margin-top: 15px;
+        }
+
+        .share-link-box {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .share-link-box input {
+            flex: 1;
+            background-color: #f5f5f5;
+        }
+
+        .share-info {
+            background-color: #f0f0f0;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 15px;
+        }
+
+        .share-info p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .sidebar {
+                display: none;
+            }
+
+            .search-box input {
+                width: 200px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 登录页面 -->
+    <div id="loginPage">
+        <div class="login-container">
+            <div class="login-header" id="loginHeader">
+                <h1>GoDisk</h1>
+                <p>安全可靠的云存储服务</p>
+            </div>
+
+            <!-- 登录表单 -->
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label>用户名</label>
+                    <input type="text" id="loginUsername" placeholder="请输入用户名" required>
+                </div>
+                <div class="form-group">
+                    <label>密码</label>
+                    <input type="password" id="loginPassword" placeholder="请输入密码" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%">登录</button>
+                <div class="login-footer">
+                    还没有账号？<a onclick="toggleAuthForm()">立即注册</a>
+                </div>
+            </form>
+
+            <!-- 注册表单 -->
+            <form id="registerForm" onsubmit="handleRegister(event)">
+                <div class="form-group">
+                    <label>用户名</label>
+                    <input type="text" id="regUsername" placeholder="请输入用户名" required>
+                </div>
+                <div class="form-group">
+                    <label>邮箱</label>
+                    <input type="email" id="regEmail" placeholder="请输入邮箱" required>
+                </div>
+                <div class="form-group">
+                    <label>密码</label>
+                    <input type="password" id="regPassword" placeholder="请输入密码（至少6位）" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label>确认密码</label>
+                    <input type="password" id="regPasswordConfirm" placeholder="请再次输入密码" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%">注册</button>
+                <div class="login-footer">
+                    已有账号？<a onclick="toggleAuthForm()">立即登录</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 主应用 -->
+    <div id="mainApp">
+        <!-- 顶部导航栏 -->
+        <nav class="navbar">
+            <div class="navbar-brand">
+                <span>📁</span> GoDisk
+            </div>
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="搜索文件名..." onkeypress="handleSearchKeyPress(event)">
+                <button class="search-btn" onclick="handleSearch()">🔍</button>
+            </div>
+            <div class="user-menu">
+                <div class="user-info">
+                    <div class="user-avatar" id="userAvatar">U</div>
+                    <span id="username">用户</span>
+                </div>
+                <div class="user-dropdown">
+                    <button class="btn btn-secondary" onclick="toggleUserMenu()">▼</button>
+                    <div class="dropdown-menu" id="userDropdown">
+                        <a onclick="showUserInfo()">👤 个人信息</a>
+                        <a onclick="showChangePassword()">🔒 修改密码</a>
+                        <a onclick="showEmbeddingStatus()">🔍 语义搜索向量</a>
+                        <a onclick="handleLogout()">🚪 退出登录</a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- 主容器 -->
+        <div class="main-container">
+            <!-- 侧边栏 -->
+            <aside class="sidebar">
+                <ul class="sidebar-menu">
+                    <li class="active" onclick="loadFiles()">
+                        <span>📁</span> 全部文件
+                    </li>
+                    <li onclick="showShares()">
+                        <span>🔗</span> 我的分享
+                    </li>
+                </ul>
+
+                <!-- 语义搜索区域 -->
+                <div class="semantic-search-section">
+                    <h4>🧠 语义搜索</h4>
+                    <textarea id="semanticInput" placeholder="描述你要找的内容...
+例：实现登录功能的代码"></textarea>
+                    <div class="search-bar">
+                        <button onclick="handleSemanticSearch()">🧠 搜索</button>
+                        <button class="clear-btn" onclick="clearSemanticSearch()" title="返回文件列表">✕</button>
+                    </div>
+                </div>
+
+                <div class="storage-info">
+                    <h4>存储空间</h4>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="storageProgress" style="width: 0%"></div>
+                    </div>
+                    <p class="storage-text" id="storageText">0 / 0</p>
+                </div>
+            </aside>
+
+            <!-- 文件区域 -->
+            <div class="file-area">
+                <!-- 工具栏 -->
+                <div class="toolbar">
+                    <!-- 上传下拉按钮 -->
+                    <div class="upload-dropdown" id="uploadDropdown">
+                        <button class="btn btn-primary" onclick="toggleUploadMenu()">⬆️ 上传 ▾</button>
+                        <div class="upload-menu" id="uploadMenu">
+                            <button onclick="openUploadModal()">📄 上传单个文件</button>
+                            <button onclick="openFolderUpload()">📁 上传文件夹</button>
+                        </div>
+                    </div>
+                    <!-- 隐藏的文件夹 input -->
+                    <input type="file" id="folderInput" style="display:none" webkitdirectory multiple
+                        onchange="handleFolderSelect(event)">
+                    <button class="btn btn-secondary" onclick="openNewFolderModal()">📁 新建文件夹</button>
+                    <button class="btn btn-secondary" onclick="loadFiles()">🔄 刷新</button>
+                    <div class="breadcrumb" id="breadcrumb">
+                        <!-- 动态生成 -->
+                    </div>
+                    <!-- 批量操作按钮组 -->
+                    <div class="batch-actions" id="batchActions">
+                        <span class="batch-info" id="batchInfo">已选择 0 项</span>
+                        <button class="btn btn-secondary" onclick="handleBatchDownload()">⬇️ 批量下载</button>
+                        <button class="btn btn-secondary" onclick="handleBatchShare()">🔗 批量分享</button>
+                        <button class="btn btn-danger" onclick="handleBatchDelete()">🗑️ 批量删除</button>
+                    </div>
+                </div>
+
+                <!-- 文件夹上传进度提示 -->
+                <div class="folder-upload-status" id="folderUploadStatus"></div>
+
+                <!-- 文件列表 -->
+                <div class="file-list">
+                    <div id="fileListContent">
+                        <!-- 动态生成 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 上传文件模态框 -->
+    <div class="modal" id="uploadModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>上传文件</h3>
+                <button class="modal-close" onclick="closeModal('uploadModal')">&times;</button>
+            </div>
+            <div class="upload-area" onclick="document.getElementById('fileInput').click()" ondrop="handleDrop(event)"
+                ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
+                <i>📁</i>
+                <p>点击或拖拽文件到这里上传</p>
+                <input type="file" id="fileInput" onchange="handleFileSelect(event)">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('uploadModal')">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新建文件夹模态框 -->
+    <div class="modal" id="newFolderModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>新建文件夹</h3>
+                <button class="modal-close" onclick="closeModal('newFolderModal')">&times;</button>
+            </div>
+            <div class="form-group">
+                <label>文件夹名称</label>
+                <input type="text" id="newFolderName" placeholder="请输入文件夹名称">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('newFolderModal')">取消</button>
+                <button class="btn btn-primary" onclick="handleCreateFolder()">创建</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 重命名模态框 -->
+    <div class="modal" id="renameModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>重命名</h3>
+                <button class="modal-close" onclick="closeModal('renameModal')">&times;</button>
+            </div>
+            <div class="form-group">
+                <label>新名称</label>
+                <input type="text" id="renameInput" placeholder="请输入新名称">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('renameModal')">取消</button>
+                <button class="btn btn-primary" onclick="handleRename()">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 分享模态框 -->
+    <div class="modal" id="shareModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>分享文件</h3>
+                <button class="modal-close" onclick="closeModal('shareModal')">&times;</button>
+            </div>
+            <div class="form-group">
+                <label>访问密码（可选）</label>
+                <input type="password" id="sharePassword" placeholder="不设置则无需密码">
+            </div>
+            <div class="form-group">
+                <label>过期天数（可选）</label>
+                <input type="text" id="shareExpireDays" placeholder="例如：7，不设置则永久有效">
+            </div>
+            <div class="form-group">
+                <label>下载次数限制（可选）</label>
+                <input type="text" id="shareDownloadLimit" placeholder="例如：10，不设置则无限制">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('shareModal')">取消</button>
+                <button class="btn btn-primary" onclick="handleCreateShare()">创建分享</button>
+            </div>
+            <div id="shareResult" class="share-link-container" style="display:none;">
+                <div class="share-info">
+                    <p><strong>分享链接：</strong></p>
+                    <div class="share-link-box">
+                        <input type="text" id="shareLink" readonly>
+                        <button class="btn btn-secondary" onclick="copyShareLink()">复制</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 用户信息模态框 -->
+    <div class="modal" id="userInfoModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>个人信息</h3>
+                <button class="modal-close" onclick="closeModal('userInfoModal')">&times;</button>
+            </div>
+            <div class="form-group">
+                <label>用户名</label>
+                <input type="text" id="profileUsername" placeholder="请输入新用户名">
+            </div>
+            <div class="form-group">
+                <label>邮箱</label>
+                <input type="text" id="profileEmail" disabled>
+            </div>
+            <div class="form-group">
+                <label>存储空间</label>
+                <p id="profileStorage" style="color: #666;">-</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('userInfoModal')">关闭</button>
+                <button class="btn btn-primary" onclick="handleUpdateProfile()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 修改密码模态框 -->
+    <div class="modal" id="changePasswordModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>修改密码</h3>
+                <button class="modal-close" onclick="closeModal('changePasswordModal')">&times;</button>
+            </div>
+            <div class="form-group">
+                <label>旧密码</label>
+                <input type="password" id="oldPassword" placeholder="请输入旧密码">
+            </div>
+            <div class="form-group">
+                <label>新密码</label>
+                <input type="password" id="newPassword" placeholder="请输入新密码（至少6位）" minlength="6">
+            </div>
+            <div class="form-group">
+                <label>确认新密码</label>
+                <input type="password" id="confirmPassword" placeholder="请再次输入新密码">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('changePasswordModal')">取消</button>
+                <button class="btn btn-primary" onclick="handleChangePassword()">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 我的分享模态框 -->
+    <div class="modal" id="sharesListModal">
+        <div class="modal-content" style="min-width: 600px;">
+            <div class="modal-header">
+                <h3>我的分享</h3>
+                <button class="modal-close" onclick="closeModal('sharesListModal')">&times;</button>
+            </div>
+            <div id="sharesListContent">
+                <!-- 动态生成 -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('sharesListModal')">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Embedding 状态模态框 -->
+    <div class="modal" id="embeddingModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🧠 语义搜索状态</h3>
+                <button class="modal-close" onclick="closeModal('embeddingModal')">&times;</button>
+            </div>
+            <div id="embeddingStatusContent">
+                <div class="form-group">
+                    <label>向量索引覆盖率</label>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="embeddingProgress" style="width: 0%"></div>
+                    </div>
+                    <p class="storage-text" id="embeddingText">加载中...</p>
+                </div>
+                <div class="share-info">
+                    <p><strong>多模态 Qwen 向量引擎：</strong></p>
+                    <p>• 模型：qwen3-vl-embedding</p>
+                    <p>• 图片/视频：直接提取视觉特征</p>
+                    <p>• PDF/文档：提取文本后向量化</p>
+                    <p>• 代码文件：带语言前缀的文本向量</p>
+                    <p>• 搜索：两阶段（先文件夹，再文件）</p>
+                    <p style="margin-top:8px;color:#1890ff">💡 点击文件操作栏的 🧠 按钮为单个文件构建索引</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('embeddingModal')">关闭</button>
+                <button class="btn btn-primary" onclick="handleRegenerateEmbeddings()">🔄 全量重建索引</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 配置
+        const API_BASE = 'http://localhost:8080';
+
+        // 全局状态
+        let state = {
+            token: localStorage.getItem('token') || '',
+            currentFolderId: 0,
+            folderPath: [{ id: 0, name: '全部文件' }],
+            selectedFileId: null,
+            selectedFiles: new Set(), // 存储选中的文件ID
+            userInfo: null,
+            currentPage: 1,
+            totalPages: 1,
+            pageSize: 50 // 增大默认每页数量，由于有分页了
+        };
+
+        // ========== 工具函数 ==========
+
+        function showMessage(message, type = 'info') {
+            const msg = document.createElement('div');
+            msg.className = `message ${type}`;
+            msg.textContent = message;
+            document.body.appendChild(msg);
+            setTimeout(() => msg.remove(), 3000);
+        }
+
+        function authHeaders() {
+            return {
+                'Authorization': `Bearer ${state.token}`
+            };
+        }
+
+        async function apiRequest(method, url, data = null, isFile = false) {
+            try {
+                const options = {
+                    method: method,
+                    headers: isFile ? authHeaders() : {
+                        'Content-Type': 'application/json',
+                        ...authHeaders()
+                    }
+                };
+
+                if (data) {
+                    if (isFile) {
+                        options.body = data;
+                    } else {
+                        options.body = JSON.stringify(data);
+                    }
+                }
+
+                const res = await fetch(API_BASE + url, options);
+
+                // 处理 401 未授权
+                if (res.status === 401) {
+                    handleLogout();
+                    return null;
+                }
+
+                const result = await res.json();
+                return result;
+            } catch (e) {
+                showMessage('网络错误: ' + e.message, 'error');
+                return null;
+            }
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        function formatDate(dateString) {
+            // 后端已经返回格式化的字符串，直接显示
+            return dateString;
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('show');
+        }
+
+        // ========== 认证相关 ==========
+
+        function toggleAuthForm() {
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+            const header = document.getElementById('loginHeader');
+
+            if (loginForm.style.display === 'none') {
+                loginForm.style.display = 'block';
+                registerForm.style.display = 'none';
+                header.querySelector('h1').textContent = 'GoDisk';
+                header.querySelector('p').textContent = '安全可靠的云存储服务';
+            } else {
+                loginForm.style.display = 'none';
+                registerForm.style.display = 'block';
+                header.querySelector('h1').textContent = '注册账号';
+                header.querySelector('p').textContent = '加入 GoDisk 开始使用';
+            }
+        }
+
+        async function handleLogin(event) {
+            event.preventDefault();
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+
+            const res = await apiRequest('POST', '/api/auth/login', { username, password });
+
+            if (res && res.code === 0) {
+                state.token = res.data.token;
+                localStorage.setItem('token', res.data.token);
+                await initApp();
+                showMessage('登录成功', 'success');
+            } else {
+                showMessage(res?.message || '登录失败', 'error');
+            }
+        }
+
+        async function handleRegister(event) {
+            event.preventDefault();
+            const username = document.getElementById('regUsername').value;
+            const email = document.getElementById('regEmail').value;
+            const password = document.getElementById('regPassword').value;
+            const confirmPassword = document.getElementById('regPasswordConfirm').value;
+
+            if (password !== confirmPassword) {
+                showMessage('两次输入的密码不一致', 'error');
+                return;
+            }
+
+            const res = await apiRequest('POST', '/api/auth/register', {
+                username,
+                email,
+                password
+            });
+
+            if (res && res.code === 0) {
+                showMessage('注册成功，请登录', 'success');
+                toggleAuthForm();
+            } else {
+                showMessage(res?.message || '注册失败', 'error');
+            }
+        }
+
+        function handleLogout() {
+            state.token = '';
+            localStorage.removeItem('token');
+            state.userInfo = null;
+            document.getElementById('loginPage').style.display = 'flex';
+            document.getElementById('mainApp').style.display = 'none';
+            showMessage('已退出登录', 'info');
+        }
+
+        // ========== 应用初始化 ==========
+
+        async function initApp() {
+            if (!state.token) {
+                document.getElementById('loginPage').style.display = 'flex';
+                document.getElementById('mainApp').style.display = 'none';
+                return;
+            }
+
+            // 获取用户信息
+            const res = await apiRequest('GET', '/api/auth/me');
+            if (res && res.code === 0) {
+                state.userInfo = res.data;
+                updateUserInfo();
+                document.getElementById('loginPage').style.display = 'none';
+                document.getElementById('mainApp').style.display = 'block';
+                loadFiles();
+            } else {
+                handleLogout();
+            }
+        }
+
+        function updateUserInfo() {
+            const user = state.userInfo;
+            document.getElementById('username').textContent = user.username;
+            document.getElementById('userAvatar').textContent = user.username[0].toUpperCase();
+
+            // 更新存储空间
+            const used = user.storage_used || 0;
+            const total = user.storage_limit || 0;
+            const percent = total > 0 ? (used / total) * 100 : 0;
+
+            document.getElementById('storageProgress').style.width = percent + '%';
+            document.getElementById('storageText').textContent =
+                `${formatFileSize(used)} / ${formatFileSize(total)}`;
+        }
+
+        function toggleUserMenu() {
+            document.getElementById('userDropdown').classList.toggle('show');
+        }
+
+        // 点击其他地方关闭下拉菜单
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest('.user-dropdown')) {
+                document.getElementById('userDropdown').classList.remove('show');
+            }
+            if (!e.target.closest('.upload-dropdown')) {
+                document.getElementById('uploadMenu').classList.remove('show');
+            }
+        });
+
+        // ========== 上传下拉菜单 ==========
+
+        function toggleUploadMenu() {
+            document.getElementById('uploadMenu').classList.toggle('show');
+        }
+
+        function openFolderUpload() {
+            document.getElementById('uploadMenu').classList.remove('show');
+            document.getElementById('folderInput').click();
+        }
+
+        async function handleFolderSelect(event) {
+            const files = Array.from(event.target.files);
+            if (files.length === 0) return;
+
+            const statusEl = document.getElementById('folderUploadStatus');
+            statusEl.style.display = 'block';
+            statusEl.textContent = `📁 正在分析文件夹结构，共 ${files.length} 个文件...`;
+
+            // 1. 收集所有唯一目录路径，按深度排序
+            const dirPaths = new Set();
+            files.forEach(f => {
+                const parts = f.webkitRelativePath.split('/');
+                // webkitRelativePath = "myFolder/subFolder/file.txt"
+                // 此时目录部分是 "myFolder" 和 "myFolder/subFolder"
+                for (let i = 1; i < parts.length; i++) {
+                    dirPaths.add(parts.slice(0, i).join('/'));
+                }
+            });
+
+            const sortedDirs = Array.from(dirPaths).sort((a, b) => {
+                return a.split('/').length - b.split('/').length;
+            });
+
+            // 2. 逐级创建文件夹，记录路径→ID的映射
+            const pathToId = { '': state.currentFolderId };
+            let created = 0;
+
+            for (const dirPath of sortedDirs) {
+                const parts = dirPath.split('/');
+                const parentPath = parts.slice(0, -1).join('/');
+                const folderName = parts[parts.length - 1];
+                const parentId = pathToId[parentPath] ?? state.currentFolderId;
+
+                statusEl.textContent = `📁 创建文件夹 ${dirPath}... (父级ID: ${parentId})`;
+                const res = await apiRequest('POST', '/api/files/folder', {
+                    folder_name: folderName,
+                    parent_id: parentId
+                });
+
+                if (res && res.code === 0) {
+                    pathToId[dirPath] = res.data.id;
+                    created++;
+                    console.log(`✅ 创建文件夹成功: ${dirPath}, ID: ${res.data.id}`);
+                } else if (res && res.message && res.message.includes('already exists')) {
+                    // 文件夹已存在，获取其 ID
+                    const listRes = await apiRequest('GET', `/api/files/list?parent_id=${parentId}&page=1&page_size=200`);
+                    if (listRes && listRes.code === 0) {
+                        const found = (listRes.data.items || []).find(f => f.file_name === folderName && f.is_directory);
+                        if (found) {
+                            pathToId[dirPath] = found.id;
+                            console.log(`📂 文件夹已存在: ${dirPath}, ID: ${found.id}`);
+                        }
+                    }
+                } else {
+                    console.warn(`❌ 创建文件夹失败: ${dirPath}`, res);
+                    showMessage(`创建文件夹 ${dirPath} 失败: ${res?.message || '未知错误'}`, 'error');
+                }
+            }
+
+            console.log('文件夹路径映射:', pathToId);
+
+            // 3. 上传每个文件到对应的父文件夹
+            let uploaded = 0, failed = 0;
+            for (const file of files) {
+                const parts = file.webkitRelativePath.split('/');
+                const dirPath = parts.slice(0, -1).join('/');
+                const parentId = pathToId[dirPath] ?? state.currentFolderId;
+
+                statusEl.textContent = `⬆️ 上传中 ${uploaded + failed + 1}/${files.length}：${file.name}`;
+                console.log(`📤 上传文件: ${file.webkitRelativePath} -> 父级ID: ${parentId}`);
+
+                const fd = new FormData();
+                fd.append('file', file, file.name);
+                fd.append('parent_id', String(parentId));
+
+                const res = await apiRequest('POST', '/api/files/upload', fd, true);
+                if (res && res.code === 0) {
+                    uploaded++;
+                } else {
+                    failed++;
+                    console.warn('Upload failed:', file.name, res);
+                }
+            }
+
+            statusEl.textContent = `✅ 上传完成！成功 ${uploaded} 个，失败 ${failed} 个，创建文件夹 ${created} 个`;
+            setTimeout(() => {
+                statusEl.style.display = 'none';
+                loadFiles();
+            }, 3000);
+
+            // 重置 input 允许下次选择同一文件夹
+            event.target.value = '';
+        }
+
+        // ========== 语义搜索 ==========
+
+        async function handleSemanticSearch() {
+            const query = document.getElementById('semanticInput').value.trim();
+            if (!query) {
+                showMessage('请输入搜索内容', 'info');
+                return;
+            }
+
+            const container = document.getElementById('fileListContent');
+            container.innerHTML = `<div style="padding:20px;text-align:center;color:#666;">🧠 正在语义搜索 "${escapeHtml(query)}"...</div>`;
+
+            const res = await apiRequest('GET', `/api/files/search?keyword=${encodeURIComponent(query)}&page=1&page_size=20`);
+
+            if (!res || res.code !== 0) {
+                container.innerHTML = `<div style="padding:20px;color:#ff4d4f;">搜索失败: ${escapeHtml(res?.message || '未知错误')}</div>`;
+                return;
+            }
+
+            const items = res.data?.items || [];
+            if (items.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i>🔍</i>
+                        <p>未找到相关内容，请尝试其他描述</p>
+                        <p style="font-size:12px;color:#999;margin-top:8px">提示：需要先为文件点击 🧠 构建语义索引后才能被搜索到</p>
+                    </div>`;
+                return;
+            }
+
+            const folders = items.filter(f => f.is_directory);
+            const files = items.filter(f => !f.is_directory);
+
+            let html = `<div style="padding:10px 12px;font-size:13px;color:#666;border-bottom:1px solid #f0f0f0;">
+                🧠 语义搜索「${escapeHtml(query)}」共找到 ${items.length} 个结果
+            </div>`;
+
+            if (folders.length > 0) {
+                html += `<div style="padding:8px 12px;background:#fffbe6;font-size:12px;color:#ad6800;font-weight:500;border-bottom:1px solid #ffe58f;">
+                    📁 相关目录 (${folders.length})</div>`;
+                html += `<table class="file-table"><thead><tr><th>名称</th><th>大小</th><th>修改时间</th><th>语义索引</th><th>操作</th></tr></thead><tbody>`;
+                folders.forEach(file => {
+                    html += `<tr>
+                        <td>
+                            <div class="file-name" onclick="openFolder(${file.id}, '${escapeHtml(file.file_name)}')">
+                                <span class="file-icon folder">📁</span>
+                                <span>${escapeHtml(file.file_name)}</span>
+                            </div>
+                        </td>
+                        <td>-</td>
+                        <td>${formatDate(file.updated_at)}</td>
+                        <td>-</td>
+                        <td><div class="file-actions">
+                            <button class="file-action-btn" onclick="handleBuildIndex(${file.id}, true)" title="重建索引">🧠</button>
+                        </div></td>
+                    </tr>`;
+                });
+                html += `</tbody></table>`;
+            }
+
+            if (files.length > 0) {
+                html += `<div style="padding:8px 12px;background:#e6f7ff;font-size:12px;color:#0050b3;font-weight:500;border-bottom:1px solid #91d5ff;margin-top:${folders.length > 0 ? 8 : 0}px;">
+                    📄 命中的相关文件 (${files.length})</div>`;
+                html += `<table class="file-table"><thead><tr><th>名称</th><th>大小</th><th>修改时间</th><th>语义索引</th><th>操作</th></tr></thead><tbody>`;
+                files.forEach(file => {
+                    const indexStatus = file.embedding_id
+                        ? '<span style="font-size:11px;color:#52c41a;background:#f6ffed;border:1px solid #b7eb8f;padding:2px 6px;border-radius:3px;">已建立</span>'
+                        : '<span style="font-size:11px;color:#ff4d4f;background:#fff1f0;border:1px solid #ffa39e;padding:2px 6px;border-radius:3px;">未建立</span>';
+                    html += `<tr>
+                        <td>
+                            <div class="file-name">
+                                <span class="file-icon file">📄</span>
+                                <span>${escapeHtml(file.file_name)}</span>
+                            </div>
+                        </td>
+                        <td>${formatFileSize(file.file_size)}</td>
+                        <td>${formatDate(file.updated_at)}</td>
+                        <td>${indexStatus}</td>
+                        <td><div class="file-actions">
+                            <button class="file-action-btn" onclick="handleBuildIndex(${file.id}, false)" title="重建索引">🧠</button>
+                            <button class="file-action-btn" onclick="handleDownload(${file.id})" title="下载">⬇️</button>
+                            <button class="file-action-btn" onclick="openShareModal(${file.id})" title="分享">🔗</button>
+                        </div></td>
+                    </tr>`;
+                });
+                html += `</tbody></table>`;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function clearSemanticSearch() {
+            document.getElementById('semanticInput').value = '';
+            loadFiles();
+        }
+
+
+
+        // ========== 文件操作 ==========
+
+        async function loadFiles(page = 1) {
+            state.currentPage = page;
+            const res = await apiRequest('GET',
+                `/api/files/list?parent_id=${state.currentFolderId}&page=${state.currentPage}&size=${state.pageSize}`
+            );
+
+            if (res && res.code === 0) {
+                // 计算总页数
+                const totalItems = res.data.total || 0;
+                state.totalPages = Math.ceil(totalItems / state.pageSize) || 1;
+
+                renderFileList(res.data.items || []);
+                updateBreadcrumb();
+            } else {
+                showMessage(res?.message || '加载文件列表失败', 'error');
+            }
+        }
+
+        function changePage(delta) {
+            const newPage = state.currentPage + delta;
+            if (newPage >= 1 && newPage <= state.totalPages) {
+                loadFiles(newPage);
+            }
+        }
+
+        function renderFileList(files) {
+            const container = document.getElementById('fileListContent');
+
+            // 清空之前的选择
+            clearSelection();
+
+            if (files.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i>📭</i>
+                        <p>此文件夹为空</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = `
+                <table class="file-table">
+                    <thead>
+                        <tr>
+                            <th class="checkbox-cell"><input type="checkbox" id="selectAllCheckbox" class="file-checkbox" onchange="toggleSelectAll(this.checked)"></th>
+                            <th>名称</th>
+                            <th>大小</th>
+                            <th>修改时间</th>
+                            <th>语义索引</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            // 先显示文件夹
+            files.filter(f => f.is_directory).forEach(file => {
+                html += `
+                    <tr>
+                        <td class="checkbox-cell"><input type="checkbox" class="file-checkbox" value="${file.id}" onchange="toggleSelectFile(${file.id})"></td>
+                        <td>
+                            <div class="file-name" onclick="openFolder(${file.id}, '${escapeHtml(file.file_name)}')">
+                                <span class="file-icon folder">📁</span>
+                                <span>${escapeHtml(file.file_name)}</span>
+                            </div>
+                        </td>
+                        <td>-</td>
+                        <td>${formatDate(file.updated_at)}</td>
+                        <td>-</td>
+                        <td>
+                            <div class="file-actions">
+                                <button class="file-action-btn" onclick="handleDownload(${file.id})" title="下载文件夹">⬇️</button>
+                                <button class="file-action-btn" onclick="handleBuildIndex(${file.id}, true)" title="构建语义索引">🧠</button>
+                                <button class="file-action-btn" onclick="openRenameModal(${file.id}, '${escapeHtml(file.file_name)}')" title="重命名">✏️</button>
+                                <button class="file-action-btn" onclick="openShareModal(${file.id})" title="分享">🔗</button>
+                                <button class="file-action-btn delete" onclick="handleDelete(${file.id})" title="删除">🗑️</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            // 再显示文件
+            files.filter(f => !f.is_directory).forEach(file => {
+                const indexStatus = file.embedding_id ?
+                    '<span style="font-size:11px;color:#52c41a;background:#f6ffed;border:1px solid #b7eb8f;padding:2px 6px;border-radius:3px;">已建立</span>' :
+                    '<span style="font-size:11px;color:#ff4d4f;background:#fff1f0;border:1px solid #ffa39e;padding:2px 6px;border-radius:3px;">未建立</span>';
+                html += `
+                    <tr>
+                        <td class="checkbox-cell"><input type="checkbox" class="file-checkbox" value="${file.id}" onchange="toggleSelectFile(${file.id})"></td>
+                        <td>
+                            <div class="file-name">
+                                <span class="file-icon file">📄</span>
+                                <span>${escapeHtml(file.file_name)}</span>
+                            </div>
+                        </td>
+                        <td>${formatFileSize(file.file_size)}</td>
+                        <td>${formatDate(file.updated_at)}</td>
+                        <td>${indexStatus}</td>
+                        <td>
+                            <div class="file-actions">
+                                <button class="file-action-btn" onclick="handleDownload(${file.id})" title="下载">⬇️</button>
+                                <button class="file-action-btn" onclick="handleBuildIndex(${file.id}, false)" title="构建语义索引">🧠</button>
+                                <button class="file-action-btn" onclick="openRenameModal(${file.id}, '${escapeHtml(file.file_name)}')" title="重命名">✏️</button>
+                                <button class="file-action-btn" onclick="openShareModal(${file.id})" title="分享">🔗</button>
+                                <button class="file-action-btn delete" onclick="handleDelete(${file.id})" title="删除">🗑️</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                    </tbody>
+                </table>
+            `;
+
+            // 渲染分页控件
+            if (state.totalPages > 1) {
+                html += `
+                <div class="pagination">
+                    <button onclick="changePage(-1)" ${state.currentPage <= 1 ? 'disabled' : ''}>上一页</button>
+                    <span class="page-info">第 ${state.currentPage} / ${state.totalPages} 页</span>
+                    <button onclick="changePage(1)" ${state.currentPage >= state.totalPages ? 'disabled' : ''}>下一页</button>
+                </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ========== 多选框相关 ==========
+
+        function toggleSelectFile(fileId) {
+            if (state.selectedFiles.has(fileId)) {
+                state.selectedFiles.delete(fileId);
+            } else {
+                state.selectedFiles.add(fileId);
+            }
+            updateBatchActions();
+            updateSelectAllCheckbox();
+        }
+
+        function toggleSelectAll(checked) {
+            const checkboxes = document.querySelectorAll('.file-checkbox');
+            checkboxes.forEach(cb => {
+                const fileId = parseInt(cb.value);
+                if (checked) {
+                    state.selectedFiles.add(fileId);
+                    cb.checked = true;
+                } else {
+                    state.selectedFiles.delete(fileId);
+                    cb.checked = false;
+                }
+            });
+            updateBatchActions();
+        }
+
+        function updateBatchActions() {
+            const count = state.selectedFiles.size;
+            const batchActions = document.getElementById('batchActions');
+            const batchInfo = document.getElementById('batchInfo');
+
+            if (count > 0) {
+                batchActions.classList.add('show');
+                batchInfo.textContent = `已选择 ${count} 项`;
+            } else {
+                batchActions.classList.remove('show');
+            }
+        }
+
+        function updateSelectAllCheckbox() {
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            const checkboxes = document.querySelectorAll('.file-checkbox');
+            if (selectAllCheckbox && checkboxes.length > 0) {
+                const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+                selectAllCheckbox.checked = allChecked && checkboxes.length > 0;
+            }
+        }
+
+        function clearSelection() {
+            state.selectedFiles.clear();
+            const checkboxes = document.querySelectorAll('.file-checkbox');
+            checkboxes.forEach(cb => cb.checked = false);
+            updateBatchActions();
+        }
+
+        async function handleBatchDelete() {
+            const count = state.selectedFiles.size;
+            if (count === 0) {
+                showMessage('请先选择要删除的文件', 'info');
+                return;
+            }
+
+            if (!confirm(`确定要删除选中的 ${count} 个文件吗？`)) {
+                return;
+            }
+
+            // 将选中的文件ID复制到数组，避免循环过程中状态变化
+            const fileIds = Array.from(state.selectedFiles);
+
+            // 先获取所有文件信息，区分文件和文件夹
+            const items = [];
+            for (const fileId of fileIds) {
+                // 从当前DOM中查找文件信息（避免额外的API调用）
+                // 如果无法从DOM获取，就跳过状态检查
+                items.push({ id: fileId, checked: true });
+            }
+
+            let success = 0;
+            let failed = 0;
+            const deletedIds = new Set(); // 记录已删除的ID
+
+            for (const fileId of fileIds) {
+                // 如果这个ID已经被删除（作为子文件被父文件夹删除），跳过
+                if (deletedIds.has(fileId)) {
+                    console.log(`文件 ${fileId} 已被级联删除，跳过`);
+                    continue;
+                }
+
+                const res = await apiRequest('DELETE', `/api/files/${fileId}`);
+                if (res && res.code === 0) {
+                    success++;
+                    deletedIds.add(fileId);
+                    console.log(`✅ 删除成功: ${fileId}`);
+                } else if (res && res.message && res.message.includes('file not found')) {
+                    // 文件找不到，可能已被级联删除，视为成功
+                    success++;
+                    deletedIds.add(fileId);
+                    console.log(`✅ 文件已不存在（级联删除）: ${fileId}`);
+                } else {
+                    failed++;
+                    console.warn(`❌ 删除失败: ${fileId}`, res);
+                }
+            }
+
+            showMessage(`删除完成：成功 ${success} 个，失败 ${failed} 个`, failed > 0 ? 'error' : 'success');
+            clearSelection();
+            loadFiles();
+            updateUserInfo();
+        }
+
+        async function handleBatchDownload() {
+            const count = state.selectedFiles.size;
+            if (count === 0) {
+                showMessage('请先选择要下载的文件', 'info');
+                return;
+            }
+
+            // 逐个下载（浏览器会处理多个下载）
+            for (const fileId of state.selectedFiles) {
+                window.open(`${API_BASE}/api/files/download/${fileId}?token=${state.token}`, '_blank');
+            }
+
+            showMessage(`开始下载 ${count} 个文件`, 'success');
+        }
+
+        async function handleBatchShare() {
+            const count = state.selectedFiles.size;
+            if (count === 0) {
+                showMessage('请先选择要分享的文件', 'info');
+                return;
+            }
+
+            if (!confirm(`确定要为选中的 ${count} 个文件创建分享链接吗？`)) {
+                return;
+            }
+
+            let success = 0;
+            let failed = 0;
+            const shareLinks = [];
+
+            for (const fileId of state.selectedFiles) {
+                const res = await apiRequest('POST', '/api/shares/create', {
+                    file_id: fileId
+                });
+                if (res && res.code === 0) {
+                    success++;
+                    shareLinks.push(`${API_BASE}/s/${res.data.share_code}`);
+                } else {
+                    failed++;
+                }
+            }
+
+            if (success > 0) {
+                // 复制所有分享链接到剪贴板
+                const linksText = shareLinks.join('\n');
+                try {
+                    await navigator.clipboard.writeText(linksText);
+                    showMessage(`分享创建成功！${success} 个链接已复制到剪贴板`, 'success');
+                } catch {
+                    showMessage(`分享创建成功：${success} 个，失败：${failed} 个`, 'success');
+                }
+            } else {
+                showMessage(`分享创建失败：${failed} 个`, 'error');
+            }
+
+            clearSelection();
+        }
+
+        function updateBreadcrumb() {
+            const container = document.getElementById('breadcrumb');
+            let html = '';
+
+            state.folderPath.forEach((folder, index) => {
+                if (index > 0) {
+                    html += '<span class="breadcrumb-separator">/</span>';
+                }
+
+                if (index === state.folderPath.length - 1) {
+                    html += `<span class="breadcrumb-item current">${escapeHtml(folder.name)}</span>`;
+                } else {
+                    html += `<span class="breadcrumb-item" onclick="navigateToFolder(${index})">${escapeHtml(folder.name)}</span>`;
+                }
+            });
+
+            container.innerHTML = html;
+        }
+
+        function openFolder(folderId, folderName) {
+            state.folderPath.push({ id: folderId, name: folderName });
+            state.currentFolderId = folderId;
+            loadFiles();
+        }
+
+        function navigateToFolder(index) {
+            state.folderPath = state.folderPath.slice(0, index + 1);
+            state.currentFolderId = state.folderPath[index].id;
+            loadFiles();
+        }
+
+        async function handleDownload(fileId) {
+            window.open(`${API_BASE}/api/files/download/${fileId}?token=${state.token}`, '_blank');
+        }
+
+        async function handleDelete(fileId) {
+            if (!confirm('确定要删除吗？')) return;
+
+            const res = await apiRequest('DELETE', `/api/files/${fileId}`);
+            if (res && res.code === 0) {
+                showMessage('删除成功', 'success');
+                loadFiles();
+                updateUserInfo();
+            } else {
+                showMessage(res?.message || '删除失败', 'error');
+            }
+        }
+
+        async function handleSearch() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) {
+                loadFiles();
+                return;
+            }
+
+            document.getElementById('breadcrumb').innerHTML = `<span class="breadcrumb-item current">🔍 语义搜索: ${escapeHtml(query)}</span>`;
+            document.getElementById('fileListContent').innerHTML = '<div class="loading">🧠 正在语义搜索...</div>';
+
+            const res = await apiRequest('GET', `/api/files/search?keyword=${encodeURIComponent(query)}&page=1&page_size=100`);
+            if (res && res.code === 0) {
+                renderSearchResults(res.data.items || []);
+            } else {
+                showMessage(res?.message || '搜索失败', 'error');
+                document.getElementById('fileListContent').innerHTML = '<div class="empty-state"><i>🔍</i><p>搜索失败，请检查 Qwen API 配置</p></div>';
+            }
+        }
+
+        function renderSearchResults(items) {
+            const folders = items.filter(f => f.is_directory);
+            const files = items.filter(f => !f.is_directory);
+            const container = document.getElementById('fileListContent');
+
+            if (items.length === 0) {
+                container.innerHTML = '<div class="empty-state"><i>🔍</i><p>未找到相关文件</p></div>';
+                return;
+            }
+
+            let html = '';
+
+            if (folders.length > 0) {
+                html += `<div style="padding:10px 12px;background:#fffbe6;border-left:3px solid #faad14;margin-bottom:4px;font-size:13px;color:#8c6900">📂 命中的相关文件夹 (${folders.length})</div><table class="file-table"><thead><tr><th>名称</th><th>大小</th><th>修改时间</th><th>语义索引</th><th>操作</th></tr></thead><tbody>`;
+                folders.forEach(f => {
+                    html += `<tr><td><div class="file-name" onclick="openFolder(${f.id},'${escapeHtml(f.file_name)}')" style="cursor:pointer"><span class="file-icon folder">📁</span><span>${escapeHtml(f.file_name)}</span></div></td><td>-</td><td>${formatDate(f.updated_at)}</td><td>-</td><td><div class="file-actions"><button class="file-action-btn" onclick="handleBuildIndex(${f.id},true)" title="构建语义索引">🧠</button><button class="file-action-btn delete" onclick="handleDelete(${f.id})" title="删除">🗑️</button></div></td></tr>`;
+                });
+                html += '</tbody></table>';
+            }
+
+            if (files.length > 0) {
+                html += `<div style="padding:10px 12px;background:#e6f7ff;border-left:3px solid #1890ff;margin:8px 0 4px;font-size:13px;color:#0050b3">📄 命中的相关文件 (${files.length})</div><table class="file-table"><thead><tr><th>名称</th><th>大小</th><th>修改时间</th><th>语义索引</th><th>操作</th></tr></thead><tbody>`;
+                files.forEach(f => {
+                    const indexStatus = f.embedding_id ?
+                        '<span style="font-size:11px;color:#52c41a;background:#f6ffed;border:1px solid #b7eb8f;padding:2px 6px;border-radius:3px;">已建立</span>' :
+                        '<span style="font-size:11px;color:#ff4d4f;background:#fff1f0;border:1px solid #ffa39e;padding:2px 6px;border-radius:3px;">未建立</span>';
+                    html += `<tr><td><div class="file-name"><span class="file-icon file">📄</span><span>${escapeHtml(f.file_name)}</span></div></td><td>${formatFileSize(f.file_size)}</td><td>${formatDate(f.updated_at)}</td><td>${indexStatus}</td><td><div class="file-actions"><button class="file-action-btn" onclick="handleDownload(${f.id})" title="下载">⬇️</button><button class="file-action-btn" onclick="handleBuildIndex(${f.id},false)" title="构建语义索引">🧠</button><button class="file-action-btn delete" onclick="handleDelete(${f.id})" title="删除">🗑️</button></div></td></tr>`;
+                });
+                html += '</tbody></table>';
+            }
+
+            container.innerHTML = html;
+        }
+
+        async function handleBuildIndex(fileId, isDir) {
+            showMessage(`🧠 ${isDir ? '文件夹' : '文件'}语义索引正在后台构建，请稍候...`, 'info');
+            const res = await apiRequest('POST', `/api/files/${fileId}/build_index`);
+            if (res && res.code === 0) {
+                showMessage(`✅ ${isDir ? '文件夹' : '文件'}语义索引已提交，后台处理中`, 'success');
+            } else {
+                showMessage(res?.message || '构建索引失败', 'error');
+            }
+        }
+
+        function handleSearchKeyPress(event) {
+            if (event.key === 'Enter') {
+                handleSearch();
+            }
+        }
+
+        // ========== 上传相关 ==========
+
+        function openUploadModal() {
+            document.getElementById('uploadModal').classList.add('show');
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                uploadFile(file);
+            }
+        }
+
+        function handleDragOver(event) {
+            event.preventDefault();
+            event.currentTarget.classList.add('dragover');
+        }
+
+        function handleDragLeave(event) {
+            event.currentTarget.classList.remove('dragover');
+        }
+
+        function handleDrop(event) {
+            event.preventDefault();
+            event.currentTarget.classList.remove('dragover');
+
+            const file = event.dataTransfer.files[0];
+            if (file) {
+                uploadFile(file);
+            }
+        }
+
+        async function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('parent_id', state.currentFolderId);
+
+            showMessage('正在上传...', 'info');
+
+            const res = await apiRequest('POST', '/api/files/upload', formData, true);
+            if (res && res.code === 0) {
+                showMessage('上传成功', 'success');
+                closeModal('uploadModal');
+                document.getElementById('fileInput').value = '';
+                loadFiles();
+                updateUserInfo();
+            } else {
+                showMessage(res?.message || '上传失败', 'error');
+            }
+        }
+
+        // ========== 文件夹操作 ==========
+
+        function openNewFolderModal() {
+            document.getElementById('newFolderName').value = '';
+            document.getElementById('newFolderModal').classList.add('show');
+        }
+
+        async function handleCreateFolder() {
+            const name = document.getElementById('newFolderName').value.trim();
+            if (!name) {
+                showMessage('请输入文件夹名称', 'error');
+                return;
+            }
+
+            const res = await apiRequest('POST', '/api/files/folder', {
+                folder_name: name,
+                parent_id: state.currentFolderId
+            });
+
+            if (res && res.code === 0) {
+                showMessage('创建成功', 'success');
+                closeModal('newFolderModal');
+                loadFiles();
+            } else {
+                showMessage(res?.message || '创建失败', 'error');
+            }
+        }
+
+        // ========== 重命名 ==========
+
+        function openRenameModal(fileId, currentName) {
+            state.selectedFileId = fileId;
+            document.getElementById('renameInput').value = currentName;
+            document.getElementById('renameModal').classList.add('show');
+        }
+
+        async function handleRename() {
+            const newName = document.getElementById('renameInput').value.trim();
+            if (!newName) {
+                showMessage('请输入新名称', 'error');
+                return;
+            }
+
+            const res = await apiRequest('PUT', '/api/files/rename', {
+                file_id: state.selectedFileId,
+                new_name: newName
+            });
+
+            if (res && res.code === 0) {
+                showMessage('重命名成功', 'success');
+                closeModal('renameModal');
+                loadFiles();
+            } else {
+                showMessage(res?.message || '重命名失败', 'error');
+            }
+        }
+
+        // ========== 分享功能 ==========
+
+        function openShareModal(fileId) {
+            state.selectedFileId = fileId;
+            document.getElementById('sharePassword').value = '';
+            document.getElementById('shareExpireDays').value = '';
+            document.getElementById('shareDownloadLimit').value = '';
+            document.getElementById('shareResult').style.display = 'none';
+            document.getElementById('shareModal').classList.add('show');
+        }
+
+        async function handleCreateShare() {
+            const password = document.getElementById('sharePassword').value || null;
+            const expireDays = document.getElementById('shareExpireDays').value ?
+                parseInt(document.getElementById('shareExpireDays').value) : null;
+            const downloadLimit = document.getElementById('shareDownloadLimit').value ?
+                parseInt(document.getElementById('shareDownloadLimit').value) : null;
+
+            const res = await apiRequest('POST', '/api/shares/create', {
+                file_id: state.selectedFileId,
+                access_password: password,
+                expire_days: expireDays,
+                download_limit: downloadLimit
+            });
+
+            if (res && res.code === 0) {
+                const shareLink = `${API_BASE}/s/${res.data.share_code}`;
+                document.getElementById('shareLink').value = shareLink;
+                document.getElementById('shareResult').style.display = 'block';
+                showMessage('分享创建成功', 'success');
+            } else {
+                showMessage(res?.message || '创建分享失败', 'error');
+            }
+        }
+
+        function copyShareLink() {
+            const linkInput = document.getElementById('shareLink');
+            linkInput.select();
+            document.execCommand('copy');
+            showMessage('已复制到剪贴板', 'success');
+        }
+
+        async function showShares() {
+            const res = await apiRequest('GET', '/api/shares');
+            if (res && res.code === 0) {
+                renderSharesList(res.data.items || []);
+                document.getElementById('sharesListModal').classList.add('show');
+            } else {
+                showMessage(res?.message || '加载分享列表失败', 'error');
+            }
+        }
+
+        function renderSharesList(shares) {
+            const container = document.getElementById('sharesListContent');
+
+            if (shares.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i>🔗</i>
+                        <p>暂无分享</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '<table class="file-table"><thead><tr><th>文件</th><th>创建时间</th><th>有效期</th><th>操作</th></tr></thead><tbody>';
+
+            shares.forEach(share => {
+                const shareLink = `${API_BASE}/s/${share.share_code}`;
+                const fileName = share.file ? share.file.file_name : '未知文件';
+                const expireText = share.expire_at ?
+                    new Date(share.expire_at).toLocaleDateString('zh-CN') :
+                    '永久';
+                html += `
+                    <tr>
+                        <td>${escapeHtml(fileName)}</td>
+                        <td>${formatDate(share.created_at)}</td>
+                        <td>${expireText}</td>
+                        <td>
+                            <div class="file-actions">
+                                <button class="file-action-btn" onclick="window.open('${shareLink}', '_blank')" title="打开链接">🔗</button>
+                                <button class="file-action-btn" onclick="navigator.clipboard.writeText('${shareLink}'); showMessage('已复制', 'success')" title="复制链接">📋</button>
+                                <button class="file-action-btn delete" onclick="deleteShare(${share.id})" title="删除">🗑️</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        async function deleteShare(shareId) {
+            if (!confirm('确定要删除此分享吗？')) return;
+
+            const res = await apiRequest('DELETE', `/api/shares/${shareId}`);
+            if (res && res.code === 0) {
+                showMessage('删除成功', 'success');
+                showShares();
+            } else {
+                showMessage(res?.message || '删除失败', 'error');
+            }
+        }
+
+        // ========== 用户信息 ==========
+
+        function showUserInfo() {
+            document.getElementById('userDropdown').classList.remove('show');
+            document.getElementById('profileUsername').value = state.userInfo.username;
+            document.getElementById('profileEmail').value = state.userInfo.email;
+            document.getElementById('profileStorage').textContent =
+                `${formatFileSize(state.userInfo.storage_used)} / ${formatFileSize(state.userInfo.storage_limit)}`;
+            document.getElementById('userInfoModal').classList.add('show');
+        }
+
+        async function handleUpdateProfile() {
+            const newUsername = document.getElementById('profileUsername').value.trim();
+            if (!newUsername) {
+                showMessage('用户名不能为空', 'error');
+                return;
+            }
+
+            const res = await apiRequest('PUT', '/api/auth/profile', {
+                username: newUsername
+            });
+
+            if (res && res.code === 0) {
+                showMessage('修改成功', 'success');
+                closeModal('userInfoModal');
+                // 重新获取用户信息
+                const userRes = await apiRequest('GET', '/api/auth/me');
+                if (userRes && userRes.code === 0) {
+                    state.userInfo = userRes.data;
+                    updateUserInfo();
+                }
+            } else {
+                showMessage(res?.message || '修改失败', 'error');
+            }
+        }
+
+        function showChangePassword() {
+            document.getElementById('userDropdown').classList.remove('show');
+            document.getElementById('oldPassword').value = '';
+            document.getElementById('newPassword').value = '';
+            document.getElementById('confirmPassword').value = '';
+            document.getElementById('changePasswordModal').classList.add('show');
+        }
+
+        async function handleChangePassword() {
+            const oldPwd = document.getElementById('oldPassword').value;
+            const newPwd = document.getElementById('newPassword').value;
+            const confirmPwd = document.getElementById('confirmPassword').value;
+
+            if (!oldPwd || !newPwd || !confirmPwd) {
+                showMessage('请填写所有字段', 'error');
+                return;
+            }
+
+            if (newPwd !== confirmPwd) {
+                showMessage('两次输入的新密码不一致', 'error');
+                return;
+            }
+
+            if (newPwd.length < 6) {
+                showMessage('新密码至少需要6位', 'error');
+                return;
+            }
+
+            const res = await apiRequest('POST', '/api/auth/change-password', {
+                old_password: oldPwd,
+                new_password: newPwd
+            });
+
+            if (res && res.code === 0) {
+                showMessage('密码修改成功', 'success');
+                closeModal('changePasswordModal');
+            } else {
+                showMessage(res?.message || '修改失败', 'error');
+            }
+        }
+
+        // ========== Embedding / 语义索引管理 ==========
+
+        async function showEmbeddingStatus() {
+            document.getElementById('userDropdown').classList.remove('show');
+            document.getElementById('embeddingModal').classList.add('show');
+
+            const res = await apiRequest('GET', '/api/admin/embedding-status');
+            if (res && res.code === 0) {
+                const d = res.data;
+                const percent = d.coverage_percent || 0;
+                document.getElementById('embeddingProgress').style.width = Math.min(percent, 100) + '%';
+                document.getElementById('embeddingText').textContent =
+                    `已建索引：${d.embedded_files} / 总文件：${d.total_files}  (${percent.toFixed(1)}%)`;
+            } else {
+                document.getElementById('embeddingText').textContent = '获取状态失败，请检查 Qwen API 配置';
+            }
+        }
+
+        async function handleRegenerateEmbeddings() {
+            if (!confirm('确定要为所有文件重新构建语义索引吗？这可能需要较长时间，取决于文件数量和 Qwen API 响应速度。')) {
+                return;
+            }
+
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '⏳ 构建中...';
+
+            try {
+                const res = await apiRequest('POST', '/api/admin/regenerate-embeddings');
+                if (res && res.code === 0) {
+                    showMessage('✅ 已在后台提交全量索引任务，请稍后刷新状态', 'success');
+                    setTimeout(() => showEmbeddingStatus(), 3000);
+                } else {
+                    showMessage(res?.message || '全量构建失败', 'error');
+                }
+            } catch (e) {
+                showMessage('网络错误: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+
+        // ========== 初始化 ==========
+
+        window.onload = function () {
+            initApp();
+        };
+    </script>
+</body>
+
+</html>
