@@ -1,0 +1,31 @@
+server:
+  port: 8080
+  mode: debug  # debug, release
+
+database:
+  path: ./data/godisk.db
+
+storage:
+  upload_path: ./uploads
+  chunk_path: ./uploads/chunks
+  vector_path: ./data/vector_db
+  max_file_size: 1073741824  # 1GB
+  default_storage_limit: 10737418240  # 10GB
+
+jwt:
+  secret: YOUR_JWT_SECRET_HERE  # 请修改为强随机字符串
+  expire_hours: 168  # 7天
+
+qwen:
+  api_url: https://dashscope.aliyuncs.com/api/v1/services/embeddings/multimodal-embedding/multimodal-embedding
+  api_key: YOUR_QWEN_API_KEY_HERE  # 请填入你的通义千问 API Key
+  model: qwen3-vl-embedding
+  enabled: true
+  timeout: 60
+  max_retries: 3
+  # 无API时的降级配置
+  fallback_to_text_search: true
+
+upload:
+  chunk_size: 5242880  # 5MB
+  max_concurrent_uploads: 5
