@@ -5,9 +5,9 @@ import (
 	"GoDisk/internal/model"
 	"GoDisk/internal/pkg/response"
 	"GoDisk/internal/service"
-	"io"
+	"net/http"
+	"net/url"
 	"strconv"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -143,13 +143,8 @@ func (h *FileHandler) UploadChunk(c *gin.Context) {
 	}
 	defer file.Close()
 
-	chunkData, err := io.ReadAll(file)
-	if err != nil {
-		response.UploadFailed(c, err.Error())
-		return
-	}
-
-	if err := h.chunkSvc.UploadChunk(userID, uploadID, chunkIndex, chunkData); err != nil {
+	// 流式传递给 service，不再将整个分片读入内存
+	if err := h.chunkSvc.UploadChunk(userID, uploadID, chunkIndex, file); err != nil {
 		response.UploadFailed(c, err.Error())
 		return
 	}
@@ -264,7 +259,7 @@ func (h *FileHandler) DownloadFile(c *gin.Context) {
 	if folderRecord.IsDirectory {
 		// 文件夹下载，打包成ZIP
 		zipName := folderRecord.FileName + ".zip"
-		c.Header("Content-Disposition", "attachment; filename=\""+zipName+"\"")
+		c.Header("Content-Disposition", safeContentDisposition(zipName))
 		c.Header("Content-Type", "application/zip")
 		err := h.fileSvc.DownloadFolder(&folderRecord, userID, c.Writer)
 		if err != nil {
@@ -281,36 +276,10 @@ func (h *FileHandler) DownloadFile(c *gin.Context) {
 	}
 	defer file.Close()
 
-	// 设置响应头
-	c.Header("Content-Disposition", "attachment; filename=\""+fileRecord.FileName+"\"")
+	// 使用 http.ServeContent 自动处理 Range 请求、ETag、Last-Modified
+	c.Header("Content-Disposition", safeContentDisposition(fileRecord.FileName))
 	c.Header("Content-Type", fileRecord.MimeType)
-	c.Header("Content-Length", strconv.FormatInt(fileRecord.FileSize, 10))
-
-	// 支持Range请求
-	httpRange := c.GetHeader("Range")
-	if httpRange != "" {
-		// 解析Range header
-		ranges := strings.TrimPrefix(httpRange, "bytes=")
-		rangeParts := strings.Split(ranges, "-")
-		if len(rangeParts) == 2 {
-			start, _ := strconv.ParseInt(rangeParts[0], 10, 64)
-			end := fileRecord.FileSize - 1
-			if rangeParts[1] != "" {
-				end, _ = strconv.ParseInt(rangeParts[1], 10, 64)
-			}
-
-			file.Seek(start, io.SeekStart)
-			c.Header("Content-Range", "bytes "+strconv.FormatInt(start, 10)+"-"+strconv.FormatInt(end, 10)+"/"+strconv.FormatInt(fileRecord.FileSize, 10))
-			c.Header("Content-Length", strconv.FormatInt(end-start+1, 10))
-			c.Status(206) // Partial Content
-
-			io.CopyN(c.Writer, file, end-start+1)
-			return
-		}
-	}
-
-	// 完整文件下载
-	io.Copy(c.Writer, file)
+	http.ServeContent(c.Writer, c.Request, fileRecord.FileName, fileRecord.UpdatedAt, file)
 }
 
 // DeleteFile 删除文件
@@ -560,4 +529,21 @@ func (h *FileHandler) BuildIndex(c *gin.Context) {
 	response.Success(c, gin.H{
 		"message": "已在后台启动语义索引构建任务",
 	})
+}
+
+// safeContentDisposition 生成安全的 Content-Disposition 头，防止文件名注入
+// 使用 RFC 6266 / RFC 5987 编码，兼容中文和特殊字符
+func safeContentDisposition(fileName string) string {
+	// ASCII fallback: 去除非ASCII字符
+	asciiName := make([]byte, 0, len(fileName))
+	for i := 0; i < len(fileName); i++ {
+		if fileName[i] >= 0x20 && fileName[i] < 0x7f && fileName[i] != '"' && fileName[i] != '\\' {
+			asciiName = append(asciiName, fileName[i])
+		} else {
+			asciiName = append(asciiName, '_')
+		}
+	}
+	// RFC 5987: filename*=UTF-8''encoded_name
+	encoded := url.PathEscape(fileName)
+	return `attachment; filename="` + string(asciiName) + `"; filename*=UTF-8''` + encoded
 }

@@ -3,11 +3,14 @@ package service
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	"GoDisk/internal/config"
 	"GoDisk/internal/model"
 	"GoDisk/internal/pkg/hash"
+
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -105,7 +108,7 @@ func (s *ChunkService) InitUpload(userID uint, req *InitChunkUploadRequest) (*In
 }
 
 // UploadChunk 上传分片
-func (s *ChunkService) UploadChunk(userID uint, uploadID string, chunkIndex int, chunkData []byte) error {
+func (s *ChunkService) UploadChunk(userID uint, uploadID string, chunkIndex int, chunkData io.Reader) error {
 	// 获取上传记录
 	var chunkRecord model.FileChunk
 	if err := s.db.Where("upload_id = ? AND user_id = ?", uploadID, userID).First(&chunkRecord).Error; err != nil {
@@ -127,18 +130,9 @@ func (s *ChunkService) UploadChunk(userID uint, uploadID string, chunkIndex int,
 		}
 	}
 
-	// 保存分片
-	chunkPath, err := s.storageSvc.SaveChunk(uploadID, chunkIndex, chunkData)
-	if err != nil {
+	// 流式保存分片到磁盘
+	if _, err := s.storageSvc.SaveChunk(uploadID, chunkIndex, chunkData); err != nil {
 		return fmt.Errorf("failed to save chunk: %w", err)
-	}
-
-	// 验证分片哈希
-	if chunkRecord.FileHash != "" {
-		calculatedHash := hash.CalculateBytesSHA256(chunkData)
-		// 这里可以添加分片哈希验证逻辑
-		_ = calculatedHash
-		_ = chunkPath
 	}
 
 	// 更新已上传分片列表
@@ -285,7 +279,7 @@ func (s *ChunkService) CancelUpload(userID uint, uploadID string) error {
 	return nil
 }
 
-// generateUploadID 生成上传ID
+// generateUploadID 生成上传ID（使用UUID确保唯一性和安全性）
 func generateUploadID(userID uint, fileName string) string {
-	return fmt.Sprintf("%d_%s_%d", userID, fileName, len(fileName))
+	return uuid.New().String()
 }

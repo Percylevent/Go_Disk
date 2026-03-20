@@ -1,15 +1,21 @@
 package handler
 
 import (
+	"GoDisk/internal/config"
 	"GoDisk/internal/middleware"
 	"GoDisk/internal/model"
 	"GoDisk/internal/pkg/response"
 	"GoDisk/internal/service"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
-	"io"
-	"os"
+	"fmt"
+	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -41,15 +47,6 @@ type CreateShareRequest struct {
 }
 
 // CreateShare 创建分享链接
-// @Summary 创建分享链接
-// @Description 为文件创建分享链接
-// @Tags shares
-// @Accept json
-// @Produce json
-// @Security Bearer
-// @Param request body CreateShareRequest true "分享信息"
-// @Success 200 {object} response.Response{data=model.Share}
-// @Router /api/shares/create [post]
 func (h *ShareHandler) CreateShare(c *gin.Context) {
 	userID := middleware.MustGetUserID(c)
 
@@ -114,15 +111,6 @@ func (h *ShareHandler) CreateShare(c *gin.Context) {
 }
 
 // ListShares 获取我的分享列表
-// @Summary 获取分享列表
-// @Description 获取当前用户的所有分享
-// @Tags shares
-// @Produce json
-// @Security Bearer
-// @Param page query int false "页码" default(1)
-// @Param size query int false "每页数量" default(20)
-// @Success 200 {object} response.Response{data=[]model.Share}
-// @Router /api/shares [get]
 func (h *ShareHandler) ListShares(c *gin.Context) {
 	userID := middleware.MustGetUserID(c)
 
@@ -157,14 +145,6 @@ func (h *ShareHandler) ListShares(c *gin.Context) {
 }
 
 // DeleteShare 取消分享
-// @Summary 取消分享
-// @Description 删除分享链接
-// @Tags shares
-// @Produce json
-// @Security Bearer
-// @Param id path int true "分享ID"
-// @Success 200 {object} response.Response
-// @Router /api/shares/:id [delete]
 func (h *ShareHandler) DeleteShare(c *gin.Context) {
 	userID := middleware.MustGetUserID(c)
 
@@ -191,13 +171,6 @@ func (h *ShareHandler) DeleteShare(c *gin.Context) {
 }
 
 // AccessShare 访问分享链接
-// @Summary 访问分享链接
-// @Description 通过分享码访问分享的文件信息
-// @Tags shares
-// @Produce json
-// @Param code path string true "分享码"
-// @Success 200 {object} response.Response{data=model.Share}
-// @Router /s/:code [get]
 func (h *ShareHandler) AccessShare(c *gin.Context) {
 	shareCode := c.Param("code")
 
@@ -230,16 +203,7 @@ func (h *ShareHandler) AccessShare(c *gin.Context) {
 	response.Success(c, responseData)
 }
 
-// VerifyShare 验证分享密码
-// @Summary 验证分享密码
-// @Description 验证分享链接的访问密码
-// @Tags shares
-// @Accept json
-// @Produce json
-// @Param code path string true "分享码"
-// @Param request body map[string]string true "密码"
-// @Success 200 {object} response.Response
-// @Router /s/:code/verify [post]
+// VerifyShare 验证分享密码，成功后返回短时效 download_token
 func (h *ShareHandler) VerifyShare(c *gin.Context) {
 	shareCode := c.Param("code")
 
@@ -269,16 +233,17 @@ func (h *ShareHandler) VerifyShare(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, gin.H{"has_password": true, "verified": true})
+	// 密码验证成功，生成短时效 download_token（10分钟有效）
+	token := generateDownloadToken(shareCode, config.Get().JWT.Secret)
+
+	response.Success(c, gin.H{
+		"has_password":   true,
+		"verified":       true,
+		"download_token": token,
+	})
 }
 
 // DownloadShare 下载分享文件
-// @Summary 下载分享文件
-// @Description 下载分享链接的文件
-// @Tags shares
-// @Produce application/octet-stream
-// @Param code path string true "分享码"
-// @Router /s/:code/download [get]
 func (h *ShareHandler) DownloadShare(c *gin.Context) {
 	shareCode := c.Param("code")
 
@@ -298,35 +263,32 @@ func (h *ShareHandler) DownloadShare(c *gin.Context) {
 		return
 	}
 
-	// 检查密码
+	// 验证访问权限：有密码的分享需要验证 download_token
 	if share.AccessPassword != "" {
-		password := c.Query("password")
-		if password == "" {
-			response.Unauthorized(c, "password required")
+		token := c.Query("token")
+		if token == "" {
+			response.Unauthorized(c, "download_token required, please verify password first")
 			return
 		}
 
-		if err := bcrypt.CompareHashAndPassword([]byte(share.AccessPassword), []byte(password)); err != nil {
-			response.Unauthorized(c, "invalid password")
+		if !validateDownloadToken(token, shareCode, config.Get().JWT.Secret) {
+			response.Unauthorized(c, "invalid or expired download token")
 			return
 		}
 	}
 
 	// 打开文件
-	file, err := os.Open(share.File.FilePath)
+	file, err := h.fileSvc.DownloadFileByPath(share.File.FilePath)
 	if err != nil {
 		response.InternalError(c, "failed to open file")
 		return
 	}
 	defer file.Close()
 
-	// 设置响应头
-	c.Header("Content-Disposition", "attachment; filename=\""+share.File.FileName+"\"")
+	// 使用安全的 Content-Disposition + http.ServeContent 处理 Range 请求
+	c.Header("Content-Disposition", shareContentDisposition(share.File.FileName))
 	c.Header("Content-Type", share.File.MimeType)
-	c.Header("Content-Length", strconv.FormatInt(share.File.FileSize, 10))
-
-	// 复制文件内容
-	io.Copy(c.Writer, file)
+	http.ServeContent(c.Writer, c.Request, share.File.FileName, share.CreatedAt, file)
 
 	// 更新下载计数
 	share.IncrementDownload()
@@ -340,4 +302,58 @@ func generateShareCode() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(bytes), nil
+}
+
+// generateDownloadToken 生成短时效下载令牌（HMAC签名，10分钟有效）
+// 格式: base64(shareCode:expiry:hmac_signature)
+func generateDownloadToken(shareCode string, secret string) string {
+	expiry := time.Now().Add(10 * time.Minute).Unix()
+	data := fmt.Sprintf("%s:%d", shareCode, expiry)
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(data))
+	sig := hex.EncodeToString(mac.Sum(nil))
+	raw := fmt.Sprintf("%s:%d:%s", shareCode, expiry, sig)
+	return base64.URLEncoding.EncodeToString([]byte(raw))
+}
+
+// validateDownloadToken 验证下载令牌
+func validateDownloadToken(token string, shareCode string, secret string) bool {
+	decoded, err := base64.URLEncoding.DecodeString(token)
+	if err != nil {
+		return false
+	}
+	parts := strings.SplitN(string(decoded), ":", 3)
+	if len(parts) != 3 {
+		return false
+	}
+	if parts[0] != shareCode {
+		return false
+	}
+	expiry, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		return false
+	}
+	if time.Now().Unix() > expiry {
+		return false
+	}
+	// 验证 HMAC 签名
+	data := fmt.Sprintf("%s:%d", parts[0], expiry)
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(data))
+	expectedSig := hex.EncodeToString(mac.Sum(nil))
+	return hmac.Equal([]byte(parts[2]), []byte(expectedSig))
+}
+
+// shareContentDisposition 生成安全的 Content-Disposition 头
+func shareContentDisposition(fileName string) string {
+	asciiName := make([]byte, 0, len(fileName))
+	for i := 0; i < len(fileName); i++ {
+		if fileName[i] >= 0x20 && fileName[i] < 0x7f && fileName[i] != '"' && fileName[i] != '\\' {
+			asciiName = append(asciiName, fileName[i])
+		} else {
+			asciiName = append(asciiName, '_')
+		}
+	}
+	encoded := url.PathEscape(fileName)
+	return `attachment; filename="` + string(asciiName) + `"; filename*=UTF-8''` + encoded
 }

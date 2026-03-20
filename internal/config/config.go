@@ -80,6 +80,19 @@ func Load(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
+	// 环境变量覆盖敏感配置（优先级高于配置文件）
+	if envSecret := os.Getenv("JWT_SECRET"); envSecret != "" {
+		cfg.JWT.Secret = envSecret
+	}
+
+	// 校验 JWT Secret 安全性
+	if len(cfg.JWT.Secret) < 32 {
+		fmt.Println("[WARNING] JWT secret is shorter than 32 characters, this is insecure for production")
+	}
+	if cfg.JWT.Secret == "your-secret-key-change-in-production" {
+		fmt.Println("[WARNING] Using default JWT secret, please set JWT_SECRET environment variable or update config.yaml for production")
+	}
+
 	// 确保必要的目录存在
 	if err := ensureDirectories(); err != nil {
 		return nil, fmt.Errorf("failed to create directories: %w", err)

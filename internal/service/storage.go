@@ -66,14 +66,21 @@ func (s *StorageService) SaveFile(file io.Reader, fileHash string) (string, int6
 	return filePath, size, nil
 }
 
-// SaveChunk 保存分片文件
-func (s *StorageService) SaveChunk(uploadID string, chunkIndex int, data []byte) (string, error) {
+// SaveChunk 保存分片文件（流式写入，避免全量内存占用）
+func (s *StorageService) SaveChunk(uploadID string, chunkIndex int, data io.Reader) (string, error) {
 	// 生成分片文件名
 	chunkFileName := fmt.Sprintf("%s_chunk_%d", uploadID, chunkIndex)
 	chunkPath := filepath.Join(s.cfg.Storage.ChunkPath, chunkFileName)
 
-	// 保存分片
-	if err := os.WriteFile(chunkPath, data, 0644); err != nil {
+	// 流式写入磁盘
+	dst, err := os.Create(chunkPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create chunk file: %w", err)
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, data); err != nil {
+		os.Remove(chunkPath)
 		return "", fmt.Errorf("failed to save chunk: %w", err)
 	}
 
@@ -125,16 +132,30 @@ func (s *StorageService) CleanChunks(uploadID string) error {
 	return nil
 }
 
-// DeleteFile 从磁盘删除文件
+// DeleteFile 从磁盘删除文件（引用计数安全）
+// 使用事务确保 count 检查和文件删除之间不会有并发问题
 func (s *StorageService) DeleteFile(filePath string) error {
-	// 检查是否有其他文件引用相同文件
-	var count int64
-	if err := s.db.Model(&model.File{}).Where("file_path = ?", filePath).Count(&count).Error; err != nil {
-		return fmt.Errorf("failed to check file references: %w", err)
+	if filePath == "" {
+		return nil
 	}
 
-	// 如果没有其他引用，删除物理文件
-	if count == 0 {
+	var shouldDelete bool
+
+	// 在事务中检查引用计数，防止并发删除竞态
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		var count int64
+		if err := tx.Model(&model.File{}).Where("file_path = ?", filePath).Count(&count).Error; err != nil {
+			return fmt.Errorf("failed to check file references: %w", err)
+		}
+		// 只有当没有任何文件记录引用此物理文件时才删除
+		shouldDelete = (count == 0)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if shouldDelete {
 		if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("failed to delete file: %w", err)
 		}

@@ -87,34 +87,45 @@ func (s *FileService) UploadFile(userID uint, fileName string, parentID uint, fi
 		return nil, fmt.Errorf("failed to save file: %w", err)
 	}
 
-	// 检查是否已经上传过相同文件
-	var existingFile model.File
-	if err := s.db.Where("user_id = ? AND file_hash = ? AND parent_id = ?", userID, fileHash, parentID).First(&existingFile).Error; err == nil {
-		// 文件已存在，不重复创建
-		return &existingFile, nil
-	}
+	// 在事务中执行数据库操作：去重检查 + 创建记录 + 更新配额
+	var fileRecord *model.File
+	err = s.db.Transaction(func(tx *gorm.DB) error {
+		// 检查是否已经上传过相同文件
+		var existingFile model.File
+		if err := tx.Where("user_id = ? AND file_hash = ? AND parent_id = ?", userID, fileHash, parentID).First(&existingFile).Error; err == nil {
+			fileRecord = &existingFile
+			return nil
+		}
 
-	// 创建文件记录
-	fileRecord := &model.File{
-		UserID:      userID,
-		ParentID:    parentID,
-		FileName:    fileName,
-		FilePath:    filePath,
-		FileHash:    fileHash,
-		FileSize:    savedSize,
-		MimeType:    mimeType,
-		IsDirectory: false,
-	}
+		// 创建文件记录
+		fileRecord = &model.File{
+			UserID:      userID,
+			ParentID:    parentID,
+			FileName:    fileName,
+			FilePath:    filePath,
+			FileHash:    fileHash,
+			FileSize:    savedSize,
+			MimeType:    mimeType,
+			IsDirectory: false,
+		}
 
-	if err := s.db.Create(fileRecord).Error; err != nil {
-		// 创建失败，删除已保存的文件
+		if err := tx.Create(fileRecord).Error; err != nil {
+			return fmt.Errorf("failed to create file record: %w", err)
+		}
+
+		// 原子更新用户存储使用量
+		if err := tx.Model(&model.User{}).Where("id = ?", userID).
+			Update("storage_used", gorm.Expr("storage_used + ?", savedSize)).Error; err != nil {
+			return fmt.Errorf("failed to update storage: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		s.storageSvc.DeleteFile(filePath)
-		return nil, fmt.Errorf("failed to create file record: %w", err)
+		return nil, err
 	}
-
-	// 更新用户存储使用量
-	user.AddStorage(savedSize)
-	s.db.Save(&user)
 
 	return fileRecord, nil
 }
@@ -226,62 +237,76 @@ func (s *FileService) DeleteFile(fileID, userID uint) error {
 		return fmt.Errorf("failed to get file: %w", err)
 	}
 
-	// 如果是文件夹，递归删除所有子文件
-	if file.IsDirectory {
-		if err := s.deleteFolderRecursive(&file); err != nil {
-			return fmt.Errorf("failed to delete folder: %w", err)
-		}
-	} else {
-		// 删除物理文件
-		if err := s.storageSvc.DeleteFile(file.FilePath); err != nil {
-			return fmt.Errorf("failed to delete physical file: %w", err)
-		}
+	// 在事务中执行删除操作
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		var totalSize int64
 
-		// 更新用户存储使用量
-		var user model.User
-		if err := s.db.First(&user, userID).Error; err == nil {
-			user.RemoveStorage(file.FileSize)
-			s.db.Save(&user)
-		}
-	}
+		if file.IsDirectory {
+			// 递归收集所有子文件信息并删除
+			filePaths, size, err := s.collectAndDeleteFolder(tx, &file)
+			if err != nil {
+				return fmt.Errorf("failed to delete folder: %w", err)
+			}
+			totalSize = size
 
-	// 删除数据库记录
-	if err := s.db.Delete(&file).Error; err != nil {
-		return fmt.Errorf("failed to delete file record: %w", err)
-	}
-
-	return nil
-}
-
-// deleteFolderRecursive 递归删除文件夹
-func (s *FileService) deleteFolderRecursive(folder *model.File) error {
-	// 查找所有子文件
-	var children []*model.File
-	if err := s.db.Where("parent_id = ?", folder.ID).Find(&children).Error; err != nil {
-		return err
-	}
-
-	// 递归删除子文件
-	for _, child := range children {
-		if child.IsDirectory {
-			if err := s.deleteFolderRecursive(child); err != nil {
-				return err
+			// 事务提交后再删除物理文件（通过延迟删除列表）
+			for _, fp := range filePaths {
+				s.storageSvc.DeleteFile(fp)
 			}
 		} else {
+			totalSize = file.FileSize
 			// 删除物理文件
-			s.storageSvc.DeleteFile(child.FilePath)
-			// 更新存储使用量
-			var user model.User
-			if err := s.db.First(&user, child.UserID).Error; err == nil {
-				user.RemoveStorage(child.FileSize)
-				s.db.Save(&user)
+			if err := s.storageSvc.DeleteFile(file.FilePath); err != nil {
+				return fmt.Errorf("failed to delete physical file: %w", err)
 			}
 		}
+
 		// 删除数据库记录
-		s.db.Delete(child)
+		if err := tx.Delete(&file).Error; err != nil {
+			return fmt.Errorf("failed to delete file record: %w", err)
+		}
+
+		// 一次性更新用户存储使用量
+		if totalSize > 0 {
+			if err := tx.Model(&model.User{}).Where("id = ?", userID).
+				Update("storage_used", gorm.Expr("CASE WHEN storage_used >= ? THEN storage_used - ? ELSE 0 END", totalSize, totalSize)).Error; err != nil {
+				return fmt.Errorf("failed to update storage: %w", err)
+			}
+		}
+
+		return nil
+	})
+}
+
+// collectAndDeleteFolder 递归收集文件夹下所有文件路径和总大小，并删除数据库记录
+func (s *FileService) collectAndDeleteFolder(tx *gorm.DB, folder *model.File) ([]string, int64, error) {
+	var children []*model.File
+	if err := tx.Where("parent_id = ?", folder.ID).Find(&children).Error; err != nil {
+		return nil, 0, err
 	}
 
-	return nil
+	var filePaths []string
+	var totalSize int64
+
+	for _, child := range children {
+		if child.IsDirectory {
+			paths, size, err := s.collectAndDeleteFolder(tx, child)
+			if err != nil {
+				return nil, 0, err
+			}
+			filePaths = append(filePaths, paths...)
+			totalSize += size
+		} else {
+			filePaths = append(filePaths, child.FilePath)
+			totalSize += child.FileSize
+		}
+		// 删除数据库记录
+		if err := tx.Delete(child).Error; err != nil {
+			return nil, 0, err
+		}
+	}
+
+	return filePaths, totalSize, nil
 }
 
 // MoveFile 移动文件
@@ -299,9 +324,24 @@ func (s *FileService) MoveFile(fileID, userID, targetParentID uint) error {
 			return errors.New("target folder not found")
 		}
 
-		// 不能移动到自己的子文件夹中
+		// 不能移动到自己
 		if targetParentID == file.ID {
 			return errors.New("cannot move to itself")
+		}
+
+		// 如果是文件夹，检查是否移动到自己的子文件夹（防止循环引用）
+		if file.IsDirectory {
+			currentID := targetParentID
+			for currentID != 0 {
+				if currentID == file.ID {
+					return errors.New("cannot move folder into its own subfolder")
+				}
+				var ancestor model.File
+				if err := s.db.Select("parent_id").First(&ancestor, currentID).Error; err != nil {
+					break
+				}
+				currentID = ancestor.ParentID
+			}
 		}
 	}
 
@@ -443,4 +483,13 @@ func (s *FileService) addFileToZip(zipWriter *zip.Writer, file *model.File, zipP
 // GetDB 获取数据库实例
 func (s *FileService) GetDB() *gorm.DB {
 	return s.db
+}
+
+// DownloadFileByPath 通过文件路径打开文件（供分享下载使用）
+func (s *FileService) DownloadFileByPath(filePath string) (*os.File, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file: %w", err)
+	}
+	return f, nil
 }

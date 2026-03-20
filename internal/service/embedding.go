@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"GoDisk/internal/config"
@@ -39,6 +40,9 @@ type embeddingServiceImpl struct {
 	chromemDB  *chromem.DB
 	collection *chromem.Collection
 	taskQueue  chan embeddingTask
+	ctx        context.Context
+	cancel     context.CancelFunc
+	wg         sync.WaitGroup
 }
 
 // NewEmbeddingService 创建 EmbeddingService
@@ -70,6 +74,8 @@ func NewEmbeddingService(db *gorm.DB, cfg *config.Config) EmbeddingService {
 		}
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	svc := &embeddingServiceImpl{
 		db:         db,
 		cfg:        cfg,
@@ -77,6 +83,8 @@ func NewEmbeddingService(db *gorm.DB, cfg *config.Config) EmbeddingService {
 		chromemDB:  chromemDB,
 		collection: collection,
 		taskQueue:  make(chan embeddingTask, 500), // 设置队列大小
+		ctx:        ctx,
+		cancel:     cancel,
 	}
 
 	svc.startWorkerPool()
@@ -89,15 +97,26 @@ func (s *embeddingServiceImpl) startWorkerPool() {
 	// 启动固定数量的 worker，限制并发度为 2 (可以根据需要调整)
 	concurrency := 2
 	for i := 0; i < concurrency; i++ {
+		s.wg.Add(1)
 		go func(workerID int) {
-			for task := range s.taskQueue {
-				if task.isDir {
-					s.CreateFolderEmbedding(task.fileID, task.userID, task.folderSummary)
-				} else {
-					s.CreateFileEmbedding(task.fileID)
+			defer s.wg.Done()
+			for {
+				select {
+				case <-s.ctx.Done():
+					log.Printf("[Embedding Worker %d] shutting down", workerID)
+					return
+				case task, ok := <-s.taskQueue:
+					if !ok {
+						return
+					}
+					if task.isDir {
+						s.CreateFolderEmbedding(task.fileID, task.userID, task.folderSummary)
+					} else {
+						s.CreateFileEmbedding(task.fileID)
+					}
+					// 任务之间稍微暂停防止 API 限流过快
+					time.Sleep(500 * time.Millisecond)
 				}
-				// 任务之间稍微暂停防止 API 限流过快
-				time.Sleep(500 * time.Millisecond)
 			}
 		}(i)
 	}
@@ -190,6 +209,9 @@ type EmbeddingService interface {
 
 	// AsyncEmbeddingTask 异步提交Embedding任务
 	AsyncEmbeddingTask(fileID uint, isDir bool, userID uint, folderSummary string)
+
+	// Shutdown 优雅关闭 embedding 服务，等待正在处理的任务完成
+	Shutdown()
 }
 
 // GenerateMultimodalEmbedding 生成多模态融合 Embedding
@@ -572,4 +594,12 @@ func isCodeFile(ext string) bool {
 
 func (s *embeddingServiceImpl) GetDB() *gorm.DB {
 	return s.db
+}
+
+// Shutdown 优雅关闭 embedding 服务
+func (s *embeddingServiceImpl) Shutdown() {
+	log.Println("[Embedding] Shutting down, waiting for workers to finish current tasks...")
+	s.cancel()
+	s.wg.Wait()
+	log.Println("[Embedding] All workers stopped")
 }
